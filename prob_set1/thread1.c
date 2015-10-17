@@ -77,7 +77,7 @@ void *reader (void *arg)
     while (resourceCnt == -1)
     {
         waitingReaders++;
-        pthread_cond_wait (&cond_R, &mutex_R_W);
+        pthread_cond_wait (&cond_R, &mutex_R_W); /* release lock & wait */
         waitingReaders--;
     }
     /* mutex_R_W is locked now */
@@ -100,8 +100,7 @@ void *reader (void *arg)
     resourceCnt--;
     pthread_mutex_unlock (&mutex_R_W);
 
-    //if(resourceCnt==0)
-    pthread_cond_signal (&cond_W);
+    pthread_cond_signal (&cond_W); /* signal waiting writer */
 
     return NULL;
 }
@@ -109,9 +108,11 @@ void *reader (void *arg)
 void *writer (void *arg)
 {
     usleep ( (rand() % 10000) * 200);	/* max 500 ms */
+
     pthread_mutex_lock (&mutex_R_W); /* lock */
 
-    while (resourceCnt != 0)
+    while (resourceCnt != 0 || waitingReaders>0) /* 2nd condition gives priority
+						    to waiting readers */
         pthread_cond_wait (&cond_W, &mutex_R_W);
     /* mutex_R_W is locked */
 
@@ -127,6 +128,8 @@ void *writer (void *arg)
     old = sVar;
     sVar = 'A' + i;
 
+    //printf ("+W%d\t[waitingR]:%d\t\t[old]: %c\t[new]: %c\n", i, waitingReaders,
+    //old, sVar);
     printf ("+W%d\t[old]: %c\t[new]: %c\n", i, old, sVar);
     fflush (stdout);
     /* end CS */
